@@ -7,10 +7,19 @@ import { useEffect, useState } from "react";
 export default function CoursePage() {
   const router = useRouter();
   const [unlockedBlock, setUnlockedBlock] = useState(1);
+  const [hasMistakes, setHasMistakes] = useState(false);
 
     useEffect(() => {
-    const stored = Number(localStorage.getItem("unlockedBlock") || "1");
-    setUnlockedBlock(stored);
+        const stored = Number(localStorage.getItem("unlockedBlock") || "1");
+        setUnlockedBlock(stored);
+    }, []);
+
+    useEffect(() => {
+        const stored = localStorage.getItem("reviewMistakes");
+
+        if (stored && JSON.parse(stored).length > 0) {
+            setHasMistakes(true);
+        }
     }, []);
 
 
@@ -22,6 +31,14 @@ export default function CoursePage() {
         </h1>
 
         <div className="space-y-4">
+            {hasMistakes && (
+            <button
+                onClick={() => router.push("/review")}
+                className="mb-6 px-4 py-2 bg-purple-500 text-white rounded-xl"
+            >
+                Разбор ошибок
+            </button>
+            )}
           {course.blocks.map((block) => (
             <div
               key={block.id}

@@ -36,8 +36,30 @@ export default function BlockPage() {
     setSelected(index);
 
     if (index === question.correctIndex) {
-      setCorrectAnswers((prev) => prev + 1);
+  setCorrectAnswers((prev) => prev + 1);
+} else {
+  const stored = localStorage.getItem("reviewMistakes");
+    const mistakes = stored ? JSON.parse(stored) : [];
+
+    const exists = mistakes.some(
+    (m: any) => m.question === question.question
+    );
+
+    if (!exists) {
+        const newMistake = {
+            question: question.question,
+            options: question.options,
+            correctIndex: question.correctIndex
+        };
+
+        const updated = [...mistakes, newMistake];
+
+        localStorage.setItem(
+            "reviewMistakes",
+            JSON.stringify(updated)
+        );
     }
+}
 
     setTimeout(() => {
       setSelected(null);
