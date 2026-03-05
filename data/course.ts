@@ -1,10 +1,4 @@
-export type Question = {
-  id: number;
-  type: "choice";
-  question: string;
-  options: string[];
-  correctIndex: number;
-};
+import { Question } from "@/types/question";
 
 export type Block = {
   id: number;
@@ -29,10 +23,10 @@ export const course = {
         },
         {
           id: 2,
-          type: "choice",
-          question: "Как будет «Пока»?",
-          options: ["Na shledanou", "Ahoj", "Děkuji"],
-          correctIndex: 1,
+          type: "audio",
+          question: "Ahoj",
+          options: ["Привет", "Спасибо", "До свидания"],
+          correctIndex: 0,
         },
         {
           id: 3,
@@ -43,9 +37,9 @@ export const course = {
         },
         {
           id: 4,
-          type: "choice",
-          question: "Как будет «До свидания»?",
-          options: ["Na shledanou", "Ahoj", "Čau"],
+          type: "audio",
+          question: "Na shledanou",
+          options: ["До свидания", "Привет", "Спасибо"],
           correctIndex: 0,
         },
         {
@@ -58,46 +52,45 @@ export const course = {
       ],
     },
     {
-        id: 2,
-        title: "Базовые фразы",
-        difficulty: "medium",
-        questions: [
-            {
-                id: 1,
-                type: "choice",
-                question: "Как будет «Я понимаю»?",
-                options: ["Já nerozumím", "Rozumím", "Nevím"],
-                correctIndex: 1,
-            },
-            {
-                id: 2,
-                type: "choice",
-                question: "Как будет «Я не понимаю»?",
-                options: ["Rozumím", "Já nerozumím", "Prosím"],
-                correctIndex: 1,
-            },
-            {
-                id: 3,
-                type: "choice",
-                question: "Как будет «Где туалет?»?",
-                options: ["Kde je toaleta?", "Kolik to stojí?", "Jak se máš?"],
-                correctIndex: 0,
-            },
-            {
-                id: 4,
-                type: "choice",
-                question: "Как будет «Сколько это стоит?»?",
-                options: ["Kde je toaleta?", "Kolik to stojí?", "Děkuji"],
-                correctIndex: 1,
-            },
-            {
-                id: 5,
-                type: "choice",
-                question: "Как будет «Мне нужна помощь»?",
-                options: ["Potřebuji pomoc", "Rozumím", "Ahoj"],
-                correctIndex: 0,
-            },
-        ],
+      id: 2,
+      title: "Базовые фразы",
+      difficulty: "medium",
+      questions: [
+        {
+          id: 1,
+          type: "choice",
+          question: "Как будет «Я не понимаю»?",
+          options: ["Rozumím", "Já nerozumím", "Prosím"],
+          correctIndex: 1,
+        },
+        {
+          id: 2,
+          type: "audio",
+          question: "Kde je toaleta?",
+          options: ["Где туалет?", "Сколько это стоит?", "Как дела?"],
+          correctIndex: 0,
+        },
+        {
+          id: 3,
+          type: "audio",
+          question: "Kolik to stojí?",
+          options: ["Где туалет?", "Сколько это стоит?", "Спасибо"],
+          correctIndex: 1,
+        },
+        {
+          id: 4,
+          type: "choice",
+          question: "Как будет «Мне нужна помощь»?",
+          options: ["Potřebuji pomoc", "Rozumím", "Ahoj"],
+          correctIndex: 0,
+        },
+        {
+          id: 5,
+          type: "drag",
+          question: "Я Анна",
+          words: ["Já", "se", "jmenuji", "Anna"]
+        }
+      ],
     },
   ],
 };

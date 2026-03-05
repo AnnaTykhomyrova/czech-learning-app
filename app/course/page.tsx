@@ -8,6 +8,14 @@ export default function CoursePage() {
   const router = useRouter();
   const [unlockedBlock, setUnlockedBlock] = useState(1);
   const [hasMistakes, setHasMistakes] = useState(false);
+  const [stats, setStats] = useState<any>({});
+
+  useEffect(() => {
+    const stored = localStorage.getItem("learningStats");
+    if (stored) {
+      setStats(JSON.parse(stored));
+    }
+  }, []);
 
     useEffect(() => {
         const stored = Number(localStorage.getItem("unlockedBlock") || "1");
@@ -39,6 +47,12 @@ export default function CoursePage() {
                 Разбор ошибок
             </button>
             )}
+            <button
+              onClick={() => router.push("/practice")}
+              className="mb-4 px-4 py-2 bg-green-500 text-white rounded-xl"
+            >
+              Быстрая тренировка
+            </button>
           {course.blocks.map((block) => (
             <div
               key={block.id}
@@ -54,6 +68,11 @@ export default function CoursePage() {
                 }`}
             >
               <h2 className="text-xl font-semibold">{block.title}</h2>
+              {stats[block.id] && (
+                <p className="text-sm text-gray-500">
+                  Точность: {stats[block.id].accuracy}%
+                </p>
+              )}
               <p className="text-gray-500 capitalize">
                 Сложность: {block.difficulty}
               </p>
