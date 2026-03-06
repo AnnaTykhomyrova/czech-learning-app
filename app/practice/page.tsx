@@ -127,7 +127,7 @@ export default function PracticePage() {
         </div>
 
         <div className="space-y-3">
-          {question.options.map((option, index) => {
+          {question.options?.map((option, index) => {
             return (
               <div
                 key={index}

@@ -1,5 +1,7 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+
 type Props = {
   correctAnswers: number;
   totalQuestions: number;
@@ -15,6 +17,7 @@ export default function ResultScreen({
 }: Props) {
   const percentage = (correctAnswers / totalQuestions) * 100;
   const passed = percentage >= 80;
+  const router = useRouter();
 
   const stats = JSON.parse(
     localStorage.getItem("learningStats") || "{}"
@@ -55,14 +58,19 @@ export default function ResultScreen({
         </h1>
 
         <p className="text-lg mb-6">
-          Ты набрала {correctAnswers} из {totalQuestions}
+          {correctAnswers} из {totalQuestions}
         </p>
-
         <button
           onClick={onBack}
           className="px-8 py-3 bg-blue-500 text-white rounded-xl hover:scale-105 transition"
         >
           Вернуться к блокам
+        </button>
+        <button
+          onClick={() => router.refresh()}
+          className="mt-4 px-8 py-3 bg-green-500 text-white rounded-xl hover:scale-105 transition"
+        >
+          🔁 Пройти блок ещё раз
         </button>
       </div>
     </main>

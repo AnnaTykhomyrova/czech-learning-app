@@ -7,7 +7,7 @@ export type Block = {
   questions: Question[];
 };
 
-export const course = {
+export const course: { blocks: Block[] } = {
   blocks: [
     {
       id: 1,
