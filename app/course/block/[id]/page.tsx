@@ -37,7 +37,7 @@ export default function BlockPage() {
     handleAnswer,
   } = useCourseProgress(block.questions.length);
 
-  const question = block.questions[currentQuestion];
+  const question = block.questions[currentQuestion] ?? null;
 
   useEffect(() => {
     if (!showResult) return;
@@ -88,6 +88,17 @@ export default function BlockPage() {
     }
   }, [question]);
 
+  if (currentQuestion >= block.questions.length && !showResult) {
+    return (
+      <ResultScreen
+        correctAnswers={correctAnswers}
+        totalQuestions={block.questions.length}
+        blockId={blockId}
+        onBack={() => router.push("/course")}
+      />
+    );
+  }
+
   if (showResult) {
     return (
       <ResultScreen
@@ -107,20 +118,22 @@ export default function BlockPage() {
             style={{ width: `${progress}%` }}
           />
         </div>
-        <QuestionRenderer
-          question={question}
-          selected={selected}
-          onAnswer={(index) =>
-            handleAnswer(index, question.correctIndex!, question)
-          }
-          onCorrect={() =>
-            setCorrectAnswers((prev) => prev + 1)
-          }
-          nextQuestion={() =>
-            setCurrentQuestion((prev) => prev + 1)
-          }
-          speak={speak}
-        />
+        {question && (
+          <QuestionRenderer
+            question={question}
+            selected={selected}
+            onAnswer={(index) =>
+              handleAnswer(index, question.correctIndex!, question)
+            }
+            onCorrect={() =>
+              setCorrectAnswers((prev) => prev + 1)
+            }
+            nextQuestion={() =>
+              setCurrentQuestion((prev) => prev + 1)
+            }
+            speak={speak}
+          />
+        )}
       </div>
     </main>
   );

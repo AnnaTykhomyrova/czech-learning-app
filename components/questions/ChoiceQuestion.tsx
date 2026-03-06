@@ -6,6 +6,13 @@ type Props = {
   onAnswer: (index: number) => void;
 };
 
+function speak(text: string) {
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.lang = "cs-CZ";
+  utter.rate = 0.9;
+  window.speechSynthesis.speak(utter);
+}
+
 export default function ChoiceQuestion({
   question,
   options,
@@ -36,7 +43,17 @@ export default function ChoiceQuestion({
               }`}
               onClick={() => onAnswer(index)}
             >
-              {option}
+              <div>{option}</div>
+
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  speak(option);
+                }}
+                className="text-sm text-blue-600 mt-2"
+              >
+                🔊 Прослушать
+              </button>
             </div>
           );
         })}
