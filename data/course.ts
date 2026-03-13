@@ -49,6 +49,12 @@ export const course: { blocks: Block[] } = {
           options: ["Promiňte", "Děkuji", "Prosím"],
           correctIndex: 0,
         },
+        {
+          id: 6,
+          type: "typing",
+          question: "Как будет «Спасибо»?",
+          answer: "děkuji"
+        },
       ],
     },
     {

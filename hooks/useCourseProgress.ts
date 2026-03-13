@@ -16,32 +16,26 @@ export function useCourseProgress(totalQuestions: number) {
         question: Question
     ) => {
     if (selected !== null) return;
-    setSelected(index);
+        setSelected(index);
 
     if (index === correctIndex) {
-    setCorrectAnswers((prev) => prev + 1);
+        setCorrectAnswers((prev) => prev + 1);
     } else {
-  const stored = localStorage.getItem("reviewMistakes");
-  const mistakes = stored ? JSON.parse(stored) : [];
+        const stored = localStorage.getItem("reviewMistakes");
+        const mistakes = stored ? JSON.parse(stored) : [];
 
-  const exists = mistakes.some(
-    (m: any) => m.question === question.question
-  );
+        const exists = mistakes.some(
+            (m: Question) => m.id === question.id
+        );
 
-  if (!exists) {
-    const newMistake = {
-      question: question.question,
-      options: question.options,
-      correctIndex: question.correctIndex,
-    };
+        if (!exists) {
+            const updated = [...mistakes, { ...question }];
 
-    const updated = [...mistakes, newMistake];
-
-    localStorage.setItem(
-      "reviewMistakes",
-      JSON.stringify(updated)
-    );
-  }
+            localStorage.setItem(
+            "reviewMistakes",
+            JSON.stringify(updated)
+            );
+        }
     }
 
     setTimeout(() => {

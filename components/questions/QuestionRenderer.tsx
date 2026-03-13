@@ -3,15 +3,8 @@
 import ChoiceQuestion from "./ChoiceQuestion";
 import AudioQuestion from "./AudioQuestion";
 import DragQuestion from "./DragQuestion";
-
-type Question = {
-  id: number;
-  type: "choice" | "audio" | "drag";
-  question: string;
-  options?: string[];
-  correctIndex?: number;
-  words?: string[];
-};
+import TypingQuestion from "./TypingQuestion";
+import type { Question } from "@/types/question";
 
 type Props = {
   question: Question;
@@ -61,6 +54,18 @@ export default function QuestionRenderer({
       <DragQuestion
         question={question}
         onCorrect={onCorrect}
+        nextQuestion={nextQuestion}
+      />
+    );
+  }
+
+  if (question.type === "typing") {
+    return (
+      <TypingQuestion
+        question={question.question}
+        answer={question.answer!}
+        onCorrect={onCorrect}
+        onWrong={() => onAnswer(-1)}
         nextQuestion={nextQuestion}
       />
     );

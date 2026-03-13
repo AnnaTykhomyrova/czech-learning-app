@@ -19,21 +19,78 @@ function speak(text: string) {
 export default function PracticePage() {
   const router = useRouter();
 
-  const [questions, setQuestions] = useState<Question[]>([]);
+  type PracticeQuestion = Question & {
+    repeats?: number;
+};
+
+    const [questions, setQuestions] = useState<PracticeQuestion[]>([]);
   const [current, setCurrent] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
   const [correctCount, setCorrectCount] = useState(0);
   const [finished, setFinished] = useState(false);
 
   useEffect(() => {
-    const allQuestions = course.blocks.flatMap(
-      (block) => block.questions
+    const allQuestions = course.blocks
+    .flatMap((block) => block.questions)
+    .filter((q) => q.type === "choice" || q.type === "audio");
+
+    const stats = JSON.parse(
+        localStorage.getItem("learningStats") || "{}"
     );
 
-    const randomQuestions = shuffleArray(allQuestions).slice(0, 5);
+    const weightedQuestions = allQuestions.map((q) => {
+    const s = stats[q.id];
 
-    setQuestions(randomQuestions);
-  }, []);
+    if (!s) return { ...q, weight: 1 };
+
+    const difficulty = s.wrong - s.correct;
+
+    return {
+            ...q,
+            weight: Math.max(1, 1 + difficulty),
+        };
+    });
+
+    const expanded: Question[] = [];
+
+    weightedQuestions.forEach((q: any) => {
+        for (let i = 0; i < q.weight; i++) {
+            expanded.push(q);
+        }
+    });
+
+    const randomQuestions = shuffleArray(expanded).slice(0, 3);
+
+    const stored = localStorage.getItem("reviewMistakes");
+    
+    let mistakeQuestions: Question[] = [];
+
+    if (stored) {
+        const parsed = JSON.parse(stored) as Question[];
+
+        mistakeQuestions = shuffleArray(
+            parsed.filter(
+                (q) => q.type === "choice" || q.type === "audio"
+            )
+        ).slice(0, 2);
+    }
+
+    let combined = [...randomQuestions, ...mistakeQuestions];
+
+    if (combined.length < 5) {
+        const extra = shuffleArray(allQuestions).slice(0, 5 - combined.length);
+        combined = [...combined, ...extra];
+    }
+
+    combined = shuffleArray(combined);
+
+    setQuestions(
+        combined.map((q) => ({
+        ...q,
+        repeats: 0,
+        }))
+    );
+}, []);
 
   if (questions.length === 0) {
     return <div className="p-10">Загрузка...</div>;
@@ -41,13 +98,50 @@ export default function PracticePage() {
 
   const question = questions[current];
 
+  if (!question?.options) return null;
+
   const handleAnswer = (index: number) => {
     if (selected !== null) return;
 
     setSelected(index);
 
-    if (index === question.correctIndex) {
-      setCorrectCount((prev) => prev + 1);
+    const isCorrect = index === question.correctIndex;
+
+    const stats = JSON.parse(
+        localStorage.getItem("learningStats") || "{}"
+    );
+
+    if (!stats[question.id]) {
+        stats[question.id] = { correct: 0, wrong: 0 };
+    }
+
+    if (isCorrect) {
+        stats[question.id].correct += 1;
+    } else {
+        stats[question.id].wrong += 1;
+    }
+
+    localStorage.setItem("learningStats", JSON.stringify(stats));
+
+    if (isCorrect) {
+        setCorrectCount((prev) => prev + 1);
+    } else {
+    if ((question.repeats ?? 0) < 2) {
+        const updated = [...questions];
+
+        const failed = {
+            ...question,
+            repeats: (question.repeats ?? 0) + 1,
+        };
+
+        updated.splice(current, 1);
+
+        const insertPosition = Math.min(current + 2, updated.length);
+
+        updated.splice(insertPosition, 0, failed);
+
+        setQuestions(updated);
+        }
     }
 
     setTimeout(() => {
@@ -55,9 +149,13 @@ export default function PracticePage() {
 
       if (current + 1 < questions.length) {
         setCurrent((prev) => prev + 1);
-      } else {
-        setFinished(true);
-      }
+        } else {
+        if (questions.some((q) => (q.repeats ?? 0) > 0)) {
+            setCurrent(0);
+        } else {
+            setFinished(true);
+        }
+        }
     }, 800);
   };
 
