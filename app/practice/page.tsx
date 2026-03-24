@@ -17,184 +17,244 @@ function speak(text: string) {
 }
 
 export default function PracticePage() {
-  const router = useRouter();
+    const router = useRouter();
 
-  type PracticeQuestion = Question & {
-    repeats?: number;
-};
+    type PracticeQuestion = Question & {
+        repeats?: number;
+    };
 
     const [questions, setQuestions] = useState<PracticeQuestion[]>([]);
-  const [current, setCurrent] = useState(0);
-  const [selected, setSelected] = useState<number | null>(null);
-  const [correctCount, setCorrectCount] = useState(0);
-  const [finished, setFinished] = useState(false);
+    const [current, setCurrent] = useState(0);
+    const [selected, setSelected] = useState<number | null>(null);
+    const [correctCount, setCorrectCount] = useState(0);
+    const [finished, setFinished] = useState(false);
+    const [lives, setLives] = useState(3);
+    const [gameOver, setGameOver] = useState(false);
+    const [streak, setStreak] = useState(0);
 
-  useEffect(() => {
-    const allQuestions = course.blocks
-    .flatMap((block) => block.questions)
-    .filter((q) => q.type === "choice" || q.type === "audio");
+    useEffect(() => {
+        const allQuestions = course.blocks
+        .flatMap((block) => block.questions)
+        .filter((q) => q.type === "choice" || q.type === "audio");
 
-    const stats = JSON.parse(
-        localStorage.getItem("learningStats") || "{}"
-    );
+        const stats = JSON.parse(
+            localStorage.getItem("learningStats") || "{}"
+        );
 
-    const weightedQuestions = allQuestions.map((q) => {
-    const s = stats[q.id];
+        const weightedQuestions = allQuestions.map((q) => {
+            const s = stats[q.id];
 
-    if (!s) return { ...q, weight: 1 };
+            if (!s) return { ...q, weight: 3 };
 
-    const difficulty = s.wrong - s.correct;
+            const total = s.correct + s.wrong;
+            const errorRate = total === 0 ? 0 : s.wrong / total;
 
-    return {
+            let weight = 1;
+
+            if (errorRate > 0.6) {
+                weight = 4; // сложный
+            } else if (errorRate > 0.3) {
+                weight = 3; // средний
+            } else {
+                weight = 1; // лёгкий
+            }
+
+            weight = Math.min(weight, 5);
+
+            return { ...q, weight };
+        });
+
+        const expanded: Question[] = [];
+
+        weightedQuestions.forEach((q: any) => {
+            for (let i = 0; i < q.weight; i++) {
+                expanded.push(q);
+            }
+        });
+
+        const randomQuestions = shuffleArray(expanded).slice(0, 3);
+
+        const stored = localStorage.getItem("reviewMistakes");
+        
+        let mistakeQuestions: Question[] = [];
+
+        if (stored) {
+            const parsed = JSON.parse(stored) as Question[];
+
+            mistakeQuestions = shuffleArray(
+                parsed.filter(
+                    (q) => q.type === "choice" || q.type === "audio"
+                )
+            ).slice(0, 2);
+        }
+
+        let combined = [...randomQuestions, ...mistakeQuestions];
+
+        if (combined.length < 5) {
+            const extra = shuffleArray(allQuestions).slice(0, 5 - combined.length);
+            combined = [...combined, ...extra];
+        }
+
+        combined = shuffleArray(combined);
+
+        setQuestions(
+            combined.map((q) => ({
             ...q,
-            weight: Math.max(1, 1 + difficulty),
-        };
-    });
+            repeats: 0,
+            }))
+        );
+    }, []);
 
-    const expanded: Question[] = [];
+    if (questions.length === 0) {
+        return <div className="p-10">Загрузка...</div>;
+    }
 
-    weightedQuestions.forEach((q: any) => {
-        for (let i = 0; i < q.weight; i++) {
-            expanded.push(q);
+    const question = questions[current] ?? questions[0];
+
+    if (!question?.options) return null;
+
+    const handleAnswer = (index: number) => {
+        if (selected !== null) return;
+
+        setSelected(index);
+
+        const isCorrect = index === question.correctIndex;
+
+        const stats = JSON.parse(
+            localStorage.getItem("learningStats") || "{}"
+        );
+
+        if (!stats[question.id]) {
+            stats[question.id] = { correct: 0, wrong: 0 };
         }
-    });
 
-    const randomQuestions = shuffleArray(expanded).slice(0, 3);
-
-    const stored = localStorage.getItem("reviewMistakes");
-    
-    let mistakeQuestions: Question[] = [];
-
-    if (stored) {
-        const parsed = JSON.parse(stored) as Question[];
-
-        mistakeQuestions = shuffleArray(
-            parsed.filter(
-                (q) => q.type === "choice" || q.type === "audio"
-            )
-        ).slice(0, 2);
-    }
-
-    let combined = [...randomQuestions, ...mistakeQuestions];
-
-    if (combined.length < 5) {
-        const extra = shuffleArray(allQuestions).slice(0, 5 - combined.length);
-        combined = [...combined, ...extra];
-    }
-
-    combined = shuffleArray(combined);
-
-    setQuestions(
-        combined.map((q) => ({
-        ...q,
-        repeats: 0,
-        }))
-    );
-}, []);
-
-  if (questions.length === 0) {
-    return <div className="p-10">Загрузка...</div>;
-  }
-
-  const question = questions[current];
-
-  if (!question?.options) return null;
-
-  const handleAnswer = (index: number) => {
-    if (selected !== null) return;
-
-    setSelected(index);
-
-    const isCorrect = index === question.correctIndex;
-
-    const stats = JSON.parse(
-        localStorage.getItem("learningStats") || "{}"
-    );
-
-    if (!stats[question.id]) {
-        stats[question.id] = { correct: 0, wrong: 0 };
-    }
-
-    if (isCorrect) {
-        stats[question.id].correct += 1;
-    } else {
-        stats[question.id].wrong += 1;
-    }
-
-    localStorage.setItem("learningStats", JSON.stringify(stats));
-
-    if (isCorrect) {
-        setCorrectCount((prev) => prev + 1);
-    } else {
-    if ((question.repeats ?? 0) < 2) {
-        const updated = [...questions];
-
-        const failed = {
-            ...question,
-            repeats: (question.repeats ?? 0) + 1,
-        };
-
-        updated.splice(current, 1);
-
-        const insertPosition = Math.min(current + 2, updated.length);
-
-        updated.splice(insertPosition, 0, failed);
-
-        setQuestions(updated);
-        }
-    }
-
-    setTimeout(() => {
-      setSelected(null);
-
-      if (current + 1 < questions.length) {
-        setCurrent((prev) => prev + 1);
+        if (isCorrect) {
+            stats[question.id].correct += 1;
+            setCorrectCount((prev) => prev + 1);
+            setStreak((prev) => prev + 1);
         } else {
-        if (questions.some((q) => (q.repeats ?? 0) > 0)) {
-            setCurrent(0);
-        } else {
-            setFinished(true);
+            stats[question.id].wrong += 1;
+            setStreak(0);
+
+            let isDead = false;
+
+            setLives((prev) => {
+                const newLives = prev - 1;
+
+                if (newLives <= 0) {
+                    isDead = true;
+
+                    setTimeout(() => {
+                        setGameOver(true);
+                    }, 800);
+                }
+
+            return newLives;
+            });
+
+            if (isDead) return;
+
+            if ((question.repeats ?? 0) < 2) {
+            const updated = [...questions];
+
+            const failed = {
+                ...question,
+                repeats: (question.repeats ?? 0) + 1,
+            };
+
+            updated.splice(current, 1);
+
+            const insertPosition = Math.min(current + 2, updated.length);
+
+            updated.splice(insertPosition, 0, failed);
+
+            setQuestions(updated);
+            }
         }
-        }
-    }, 800);
-  };
 
-  if (finished) {
-    const percentage =
-      (correctCount / questions.length) * 100;
+        localStorage.setItem("learningStats", JSON.stringify(stats));
 
-    return (
-      <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-100 to-purple-100">
-        <div className="bg-white p-10 rounded-3xl shadow-xl text-center">
-          <h2 className="text-2xl font-bold mb-4">
-            🎉 Быстрая тренировка завершена
-          </h2>
+        setTimeout(() => {
+            setSelected(null);
 
-          <p className="mb-2">
-            Правильных ответов: {correctCount}
-          </p>
+            setCurrent((prevCurrent) => {
+                const nextIndex = prevCurrent + 1;
 
-          <p className="mb-2">
-            Ошибок: {questions.length - correctCount}
-          </p>
+                if (nextIndex < questions.length) {
+                    return nextIndex;
+                }
 
-          <p className="mb-6 font-medium">
-            Точность: {Math.round(percentage)}%
-          </p>
+                const hasRepeats = questions.some((q) => (q.repeats ?? 0) > 0);
 
-          <button
-            onClick={() => router.push("/course")}
-            className="px-4 py-2 bg-blue-500 text-white rounded-xl"
-          >
-            Назад к курсу
-          </button>
-        </div>
-      </main>
-    );
-  }
+                if (hasRepeats) {
+                    return 0;
+                } else {
+                    setFinished(true);
+                    return prevCurrent;
+                }
+            });
+        }, 800);
+    };
 
-  const progress =
-    ((current + 1) / questions.length) * 100;
+    if (gameOver) {
+        return (
+            <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-100 to-purple-100">
+                <div className="bg-white p-10 rounded-3xl shadow-xl text-center">
+                    <h2 className="text-2xl font-bold mb-4">
+                        💔 Жизни закончились
+                    </h2>
+
+                    <p className="mb-6">
+                        Попробуй ещё раз — получится лучше 💪
+                    </p>
+
+                    <button
+                        onClick={() => router.refresh()}
+                        className="px-4 py-2 bg-blue-500 text-white rounded-xl"
+                    >
+                        🔁 Попробовать снова
+                    </button>
+                </div>
+            </main>
+        );
+    }
+
+    if (finished) {
+        const percentage =
+            (correctCount / questions.length) * 100;
+
+        return (
+            <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-100 to-purple-100">
+                <div className="bg-white p-10 rounded-3xl shadow-xl text-center">
+                    <h2 className="text-2xl font-bold mb-4">
+                        🎉 Быстрая тренировка завершена
+                    </h2>
+
+                    <p className="mb-2">
+                        Правильных ответов: {correctCount}
+                    </p>
+
+                    <p className="mb-2">
+                        Ошибок: {questions.length - correctCount}
+                    </p>
+
+                    <p className="mb-6 font-medium">
+                        Точность: {Math.round(percentage)}%
+                    </p>
+
+                    <button
+                        onClick={() => router.push("/course")}
+                        className="px-4 py-2 bg-blue-500 text-white rounded-xl"
+                    >
+                        Назад к курсу
+                    </button>
+                </div>
+            </main>
+        );
+    }
+
+    const progress =
+        ((current + 1) / questions.length) * 100;
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-blue-100 to-purple-100 p-8">
@@ -207,6 +267,21 @@ export default function PracticePage() {
           ← Назад
         </button>
 
+        <div className="flex items-center justify-between mb-4">
+            <div className="flex gap-2">
+                {[...Array(3)].map((_, i) => (
+                <span key={i} className="text-2xl">
+                    {i < lives ? "❤️" : "🖤"}
+                </span>
+                ))}
+            </div>
+
+            {streak > 0 && (
+                <div className="text-orange-500 font-bold">
+                    {streak >= 3 ? `🔥 ${streak}` : streak}
+                </div>
+            )}
+        </div>
         <div className="w-full bg-gray-200 h-3 rounded-full mb-6">
           <div
             className="bg-blue-500 h-3 rounded-full transition-all"
