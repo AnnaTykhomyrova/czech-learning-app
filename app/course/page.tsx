@@ -3,32 +3,84 @@
 import { useRouter } from "next/navigation";
 import { course } from "@/data/course";
 import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
 
 export default function CoursePage() {
   const router = useRouter();
   const [unlockedBlock, setUnlockedBlock] = useState(1);
   const [hasMistakes, setHasMistakes] = useState(false);
   const [stats, setStats] = useState<any>({});
+  const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
-    const stored = localStorage.getItem("learningStats");
-    if (stored) {
-      setStats(JSON.parse(stored));
-    }
+    const initUser = async () => {
+      const { data } = await supabase.auth.signInWithPassword({
+        email: "test@test.com",
+        password: "12345678",
+      });
+
+      setUser(data.user);
+    };
+
+    initUser();
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const loadProgress = async () => {
+      const { data } = await supabase
+        .from("progress")
+        .select("block_id")
+        .eq("user_id", user.id)
+        .order("block_id", { ascending: false })
+        .limit(1);
+
+      if (data && data.length > 0) {
+        setUnlockedBlock(data[0].block_id);
+      } else {
+        setUnlockedBlock(1); // дефолт
+      }
+    };
+
+    loadProgress();
+  }, [user]);
+
+  useEffect(() => {
+    const loadStats = async () => {
+      const { data } = await supabase
+        .from("stats")
+        .select("*");
+
+      const mapped: any = {};
+
+      data?.forEach((item) => {
+        mapped[item.question_id] = {
+          correct: item.correct,
+          wrong: item.wrong,
+        };
+      });
+
+      setStats(mapped);
+    };
+
+    loadStats();
   }, []);
 
     useEffect(() => {
-        const stored = Number(localStorage.getItem("unlockedBlock") || "1");
-        setUnlockedBlock(stored);
-    }, []);
+      const checkMistakes = async () => {
+          const { data } = await supabase
+              .from("mistakes")
+              .select("id")
+              .limit(1);
 
-    useEffect(() => {
-        const stored = localStorage.getItem("reviewMistakes");
+          if (data && data.length > 0) {
+              setHasMistakes(true);
+          }
+      };
 
-        if (stored && JSON.parse(stored).length > 0) {
-            setHasMistakes(true);
-        }
-    }, []);
+      checkMistakes();
+  }, []);
 
 
   return (
@@ -68,11 +120,6 @@ export default function CoursePage() {
                 }`}
             >
               <h2 className="text-xl font-semibold">{block.title}</h2>
-              {stats[block.id] && (
-                <p className="text-sm text-gray-500">
-                  Точность: {stats[block.id].accuracy}%
-                </p>
-              )}
               <p className="text-gray-500 capitalize">
                 Сложность: {block.difficulty}
               </p>

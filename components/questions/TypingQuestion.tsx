@@ -5,7 +5,6 @@ import { useState, useRef, useEffect } from "react";
 type Props = {
   question: string;
   answer: string;
-  onCorrect: () => void;
   onWrong: () => void;
   nextQuestion: () => void;
 };
@@ -21,7 +20,6 @@ function normalize(text: string) {
 export default function TypingQuestion({
   question,
   answer,
-  onCorrect,
   onWrong,
   nextQuestion,
 }: Props) {
@@ -40,7 +38,6 @@ export default function TypingQuestion({
 
     if (normalizedInput === normalizedAnswer) {
         setResult("correct");
-        onCorrect();
     } else {
         setResult("wrong");
         onWrong();

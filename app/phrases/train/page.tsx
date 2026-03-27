@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabaseClient";
 
 type Phrase = {
-  id: number;
+  id: string;
   ru: string;
   cz: string;
   en?: string;
@@ -22,26 +23,42 @@ export default function TrainPage() {
   const [correctCount, setCorrectCount] = useState(0);
   const [options, setOptions] = useState<string[]>([]);
   const [mistakes, setMistakes] = useState<Phrase[]>([]);
+  const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
-    const stored = localStorage.getItem("myPhrases");
+    const initUser = async () => {
+      const { data } = await supabase.auth.getUser();
+      setUser(data.user);
+    };
 
-    if (stored) {
-        const parsed = JSON.parse(stored);
-        setPhrases(shuffleArray(parsed));
-    }
-    }, []);
+    initUser();
+  }, []);
 
-    const phrase = phrases[current];
+  useEffect(() => {
+    if (!user) return;
+
+    const load = async () => {
+      const { data } = await supabase
+        .from("phrases")
+        .select("*")
+        .eq("user_id", user.id);
+
+      setPhrases(shuffleArray(data || []));
+    };
+
+    load();
+  }, [user]);
+
+  const phrase = phrases[current];
 
   useEffect(() => {
     if (!phrase) return;
 
     const wrongAnswers = shuffleArray(
-        phrases.filter((p) => p.id !== phrase.id)
+      phrases.filter((p) => p.id !== phrase.id)
     )
-        .slice(0, 3)
-        .map((p) => p.cz);
+      .slice(0, 3)
+      .map((p) => p.cz);
 
     const generated = shuffleArray([
         phrase.cz,
@@ -49,43 +66,45 @@ export default function TrainPage() {
     ]);
 
     setOptions(generated);
-    }, [current, phrases]);
+  }, [current, phrases]);
 
-    if (current >= phrases.length && mistakes.length === 0) {
-  return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="bg-white p-10 rounded-3xl shadow-xl text-center">
-        <h2 className="text-2xl font-bold mb-4">
-          🎉 Тренировка завершена
-        </h2>
-        <p className="mb-2">
-            Correct answers: {correctCount}
-        </p>
+  useEffect(() => {
+    if (current >= phrases.length && mistakes.length > 0) {
+      setPhrases(shuffleArray(mistakes));
+      setMistakes([]);
+      setCurrent(0);
+    }
+  }, [current, phrases.length, mistakes]);
 
-        <p className="mb-2">
-            Mistakes: {phrases.length - correctCount}
-        </p>
+  if (current >= phrases.length && mistakes.length === 0) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="bg-white p-10 rounded-3xl shadow-xl text-center">
+          <h2 className="text-2xl font-bold mb-4">
+            🎉 Тренировка завершена
+          </h2>
+          <p className="mb-2">
+              Correct answers: {correctCount}
+          </p>
 
-        <p className="mb-6 font-medium">
-            Accuracy: {Math.round((correctCount / phrases.length) * 100)}%
-        </p>
+          <p className="mb-2">
+              Mistakes: {mistakes.length}
+          </p>
 
-        <button
-          onClick={() => router.push("/phrases")}
-          className="px-4 py-2 bg-blue-500 text-white rounded-xl"
-        >
-          Назад к фразам
-        </button>
+          <p className="mb-6 font-medium">
+              Accuracy: {Math.round((correctCount / phrases.length) * 100)}%
+          </p>
+
+          <button
+            onClick={() => router.push("/phrases")}
+            className="px-4 py-2 bg-blue-500 text-white rounded-xl"
+          >
+            Назад к фразам
+          </button>
+        </div>
       </div>
-    </div>
-  );
-}
-
-if (current >= phrases.length && mistakes.length > 0) {
-  setPhrases(shuffleArray(mistakes));
-  setMistakes([]);
-  setCurrent(0);
-}
+    );
+  }
 
   if (phrases.length === 0) {
     return (
@@ -96,6 +115,8 @@ if (current >= phrases.length && mistakes.length > 0) {
   }
 
   const correctIndex = options.indexOf(phrase.cz);
+  if (correctIndex === -1) return null;
+
   const handleAnswer = (index: number) => {
     if (selected !== null) return;
 
@@ -111,7 +132,7 @@ if (current >= phrases.length && mistakes.length > 0) {
         setSelected(null);
         setCurrent((prev) => prev + 1);
     }, 900);
-};
+  };
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-purple-100 to-blue-100 p-8">

@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { course } from "@/data/course";
 import { Question } from "@/types/question";
 
+import { supabase } from "@/lib/supabaseClient";
+
 function shuffleArray<T>(array: T[]): T[] {
   return [...array].sort(() => Math.random() - 0.5);
 }
@@ -23,6 +25,13 @@ export default function PracticePage() {
         repeats?: number;
     };
 
+    type StatsType = {
+        [key: string]: {
+            correct: number;
+            wrong: number;
+        };
+    };
+
     const [questions, setQuestions] = useState<PracticeQuestion[]>([]);
     const [current, setCurrent] = useState(0);
     const [selected, setSelected] = useState<number | null>(null);
@@ -31,79 +40,120 @@ export default function PracticePage() {
     const [lives, setLives] = useState(3);
     const [gameOver, setGameOver] = useState(false);
     const [streak, setStreak] = useState(0);
+    const [stats, setStats] = useState<StatsType>({});
+    const [user, setUser] = useState<any>(null);
+    const [initialized, setInitialized] = useState(false);
 
     useEffect(() => {
-        const allQuestions = course.blocks
-        .flatMap((block) => block.questions)
-        .filter((q) => q.type === "choice" || q.type === "audio");
+        const initUser = async () => {
+            const { data } = await supabase.auth.signInWithPassword({
+                email: "test@test.com",
+                password: "12345678",
+            });
 
-        const stats = JSON.parse(
-            localStorage.getItem("learningStats") || "{}"
-        );
+            setUser(data.user);
+        };
 
-        const weightedQuestions = allQuestions.map((q) => {
-            const s = stats[q.id];
-
-            if (!s) return { ...q, weight: 3 };
-
-            const total = s.correct + s.wrong;
-            const errorRate = total === 0 ? 0 : s.wrong / total;
-
-            let weight = 1;
-
-            if (errorRate > 0.6) {
-                weight = 4; // сложный
-            } else if (errorRate > 0.3) {
-                weight = 3; // средний
-            } else {
-                weight = 1; // лёгкий
-            }
-
-            weight = Math.min(weight, 5);
-
-            return { ...q, weight };
-        });
-
-        const expanded: Question[] = [];
-
-        weightedQuestions.forEach((q: any) => {
-            for (let i = 0; i < q.weight; i++) {
-                expanded.push(q);
-            }
-        });
-
-        const randomQuestions = shuffleArray(expanded).slice(0, 3);
-
-        const stored = localStorage.getItem("reviewMistakes");
-        
-        let mistakeQuestions: Question[] = [];
-
-        if (stored) {
-            const parsed = JSON.parse(stored) as Question[];
-
-            mistakeQuestions = shuffleArray(
-                parsed.filter(
-                    (q) => q.type === "choice" || q.type === "audio"
-                )
-            ).slice(0, 2);
-        }
-
-        let combined = [...randomQuestions, ...mistakeQuestions];
-
-        if (combined.length < 5) {
-            const extra = shuffleArray(allQuestions).slice(0, 5 - combined.length);
-            combined = [...combined, ...extra];
-        }
-
-        combined = shuffleArray(combined);
-
-        setQuestions(
-            combined.map((q) => ({
-            ...q,
-            repeats: 0,
-            }))
-        );
+        initUser();
     }, []);
+
+    useEffect(() => {
+        if (!user) return;
+
+        const loadStats = async () => {
+            const { data } = await supabase
+                .from("stats")
+                .select("*")
+                .eq("user_id", user.id);
+
+            const mapped: StatsType = {};
+
+            data?.forEach((item) => {
+                mapped[item.question_id] = {
+                    correct: item.correct,
+                    wrong: item.wrong,
+                };
+            });
+
+            setStats(mapped);
+            setInitialized(true);
+        };
+
+        loadStats();
+    }, [user]);
+
+    useEffect(() => {
+        if (!initialized || !user) return;
+
+        const loadQuestions = async () => {
+            const allQuestions = course.blocks
+                .flatMap((block) => block.questions)
+                .filter((q) => q.type === "choice" || q.type === "audio");
+
+            const weightedQuestions = allQuestions.map((q) => {
+                const s = stats[q.id];
+
+                if (!s) return { ...q, weight: 3 };
+
+                const total = s.correct + s.wrong;
+                const errorRate = total === 0 ? 0 : s.wrong / total;
+
+                let weight = 1;
+
+                if (errorRate > 0.6) weight = 4;
+                else if (errorRate > 0.3) weight = 3;
+                else weight = 1;
+
+                return { ...q, weight: Math.min(weight, 5) };
+            });
+
+            const expanded: Question[] = [];
+
+            weightedQuestions.forEach((q: any) => {
+                for (let i = 0; i < q.weight; i++) {
+                    expanded.push(q);
+                }
+            });
+
+            const randomQuestions = shuffleArray(expanded).slice(0, 3);
+
+            // 🔥 ВОТ ЗДЕСЬ НОВАЯ ЛОГИКА
+            const { data: mistakesData } = await supabase
+                .from("mistakes")
+                .select("question")
+                .eq("user_id", user.id);
+
+            let mistakeQuestions: Question[] = [];
+
+            if (mistakesData) {
+                mistakeQuestions = shuffleArray(
+                    mistakesData
+                        .map((item) => item.question)
+                        .filter(
+                            (q) => q.type === "choice" || q.type === "audio"
+                        )
+                ).slice(0, 2);
+            }
+
+            let combined = [...randomQuestions, ...mistakeQuestions];
+
+            if (combined.length < 5) {
+                const extra = shuffleArray(allQuestions).slice(0, 5 - combined.length);
+                combined = [...combined, ...extra];
+            }
+
+            combined = shuffleArray(combined);
+
+            setQuestions(
+                combined.map((q) => ({
+                    ...q,
+                    repeats: 0,
+                }))
+            );
+        };
+
+        loadQuestions();
+    }, [initialized, user]);
 
     if (questions.length === 0) {
         return <div className="p-10">Загрузка...</div>;
@@ -113,27 +163,76 @@ export default function PracticePage() {
 
     if (!question?.options) return null;
 
-    const handleAnswer = (index: number) => {
+    async function saveProgress(questionId: string, isCorrect: boolean) {
+    if (!user) return;
+
+    const { data: existing } = await supabase
+        .from("stats")
+        .select("*")
+        .eq("question_id", questionId)
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+    if (existing) {
+        await supabase
+        .from("stats")
+        .update({
+            correct: isCorrect
+                ? existing.correct + 1
+                : existing.correct,
+            wrong: !isCorrect
+                ? existing.wrong + 1
+                : existing.wrong,
+        })
+        .eq("id", existing.id);
+    } else {
+        await supabase.from("stats").insert({
+            user_id: user.id,
+            question_id: questionId,
+            correct: isCorrect ? 1 : 0,
+            wrong: isCorrect ? 0 : 1,
+        });
+    }
+    }
+
+    const saveMistake = async (question: Question) => {
+        if (!user) return;
+
+        const { data: existing } = await supabase
+            .from("mistakes")
+            .select("*")
+            .eq("user_id", user.id)
+            .eq("question->>id", String(question.id))
+            .maybeSingle();
+
+        if (!existing) {
+            await supabase.from("mistakes").insert({
+            user_id: user.id,
+            question: question,
+            });
+        }
+    };
+
+    const handleAnswer = async (index: number) => {
         if (selected !== null) return;
 
         setSelected(index);
 
         const isCorrect = index === question.correctIndex;
 
-        const stats = JSON.parse(
-            localStorage.getItem("learningStats") || "{}"
-        );
-
-        if (!stats[question.id]) {
-            stats[question.id] = { correct: 0, wrong: 0 };
-        }
+        setStats((prev: StatsType) => ({
+            ...prev,
+            [question.id]: {
+                correct: (prev[question.id]?.correct || 0) + (isCorrect ? 1 : 0),
+                wrong: (prev[question.id]?.wrong || 0) + (!isCorrect ? 1 : 0),
+            },
+        }));
 
         if (isCorrect) {
-            stats[question.id].correct += 1;
             setCorrectCount((prev) => prev + 1);
             setStreak((prev) => prev + 1);
         } else {
-            stats[question.id].wrong += 1;
+            await saveMistake(question);
             setStreak(0);
 
             let isDead = false;
@@ -172,7 +271,7 @@ export default function PracticePage() {
             }
         }
 
-        localStorage.setItem("learningStats", JSON.stringify(stats));
+        await saveProgress(String(question.id), isCorrect);
 
         setTimeout(() => {
             setSelected(null);
@@ -182,12 +281,6 @@ export default function PracticePage() {
 
                 if (nextIndex < questions.length) {
                     return nextIndex;
-                }
-
-                const hasRepeats = questions.some((q) => (q.repeats ?? 0) > 0);
-
-                if (hasRepeats) {
-                    return 0;
                 } else {
                     setFinished(true);
                     return prevCurrent;
@@ -209,7 +302,15 @@ export default function PracticePage() {
                     </p>
 
                     <button
-                        onClick={() => router.refresh()}
+                        onClick={() => {
+                            setCurrent(0);
+                            setSelected(null);
+                            setCorrectCount(0);
+                            setFinished(false);
+                            setLives(3);
+                            setGameOver(false);
+                            setStreak(0);
+                        }}
                         className="px-4 py-2 bg-blue-500 text-white rounded-xl"
                     >
                         🔁 Попробовать снова

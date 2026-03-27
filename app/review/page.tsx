@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import QuestionRenderer from "@/components/questions/QuestionRenderer";
 import type { Question } from "@/types/question";
+import { supabase } from "@/lib/supabaseClient";
 
 
 function speak(text: string) {
@@ -21,20 +22,51 @@ export default function ReviewPage() {
   const [loaded, setLoaded] = useState(false);
   const router = useRouter();
   const question = questions[current] ?? null;
+  const [user, setUser] = useState<any>(null);
+
+  const removeMistake = async (questionId: string) => {
+    if (!user) return;
+
+    await supabase
+      .from("mistakes")
+      .delete()
+      .eq("user_id", user.id)
+      .eq("question->>id", questionId);
+  };
 
   useEffect(() => {
-    const stored = localStorage.getItem("reviewMistakes");
+    const initUser = async () => {
+      const { data } = await supabase.auth.signInWithPassword({
+        email: "test@test.com",
+        password: "12345678",
+      });
 
-    if (stored) {
-      const parsed = JSON.parse(stored);
+      setUser(data.user);
+    };
+
+    initUser();
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const loadMistakes = async () => {
+      const { data } = await supabase
+        .from("mistakes")
+        .select("*")
+        .eq("user_id", user.id);
+
+      const parsed = data?.map((item) => item.question) || [];
+
       const shuffled = [...parsed].sort(() => Math.random() - 0.5);
 
       setQuestions(shuffled.slice(0, 10));
       setCurrent(0);
-    }
+      setLoaded(true);
+    };
 
-    setLoaded(true);
-  }, []);
+    loadMistakes();
+  }, [user]);
 
   useEffect(() => {
     if (question?.type === "audio") {
@@ -79,7 +111,7 @@ export default function ReviewPage() {
       </div>
     );
   }
-
+  
   const handleAnswer = (index: number) => {
     if (selected !== null) return;
 
@@ -87,46 +119,31 @@ export default function ReviewPage() {
 
     const correct = index === question.correctIndex;
 
-    setTimeout(() => {
+    setTimeout(async () => {
       setSelected(null);
 
-      if (!correct) {
-        const updated = [...questions];
+      let updated = [...questions];
 
+      if (!correct) {
         const failed = updated.splice(current, 1)[0];
 
         const insertPosition = Math.min(current + 2, updated.length);
 
         updated.splice(insertPosition, 0, failed);
-
-        setQuestions(updated);
+      } else {
+        updated = updated.filter((q) => q.id !== question.id);
+        await removeMistake(String(question.id));
       }
 
-      const stored = localStorage.getItem("reviewMistakes");
-      const mistakes = stored ? JSON.parse(stored) : [];
+      setQuestions(updated);
 
-      const updated = mistakes.filter(
-        (m: Question) => m.id !== question.id
-      );
-
-      localStorage.setItem(
-        "reviewMistakes",
-        JSON.stringify(updated)
-      );
-
-      const newQuestions = questions.filter(
-        (q) => q.id !== question.id
-      );
-
-      setQuestions(newQuestions);
-
-      if (newQuestions.length === 0) {
+      if (updated.length === 0) {
         setFinished(true);
         return;
       }
 
-      if (current >= newQuestions.length) {
-        setCurrent(newQuestions.length - 1);
+      if (current >= updated.length) {
+        setCurrent(updated.length - 1);
       }
 
     }, 900);
@@ -169,34 +186,6 @@ export default function ReviewPage() {
             question={question}
             selected={selected}
             onAnswer={handleAnswer}
-            onCorrect={() => {
-              const stored = localStorage.getItem("reviewMistakes");
-              const mistakes = stored ? JSON.parse(stored) : [];
-
-              const updated = mistakes.filter(
-                (m: Question) => m.id !== question.id
-              );
-
-              localStorage.setItem(
-                "reviewMistakes",
-                JSON.stringify(updated)
-              );
-
-              const newQuestions = questions.filter(
-                (q) => q.id !== question.id
-              );
-
-              setQuestions(newQuestions);
-
-              if (newQuestions.length === 0) {
-                setFinished(true);
-                return;
-              }
-
-              if (current >= newQuestions.length) {
-                setCurrent(newQuestions.length - 1);
-              }
-            }}
             nextQuestion={() => setCurrent((prev) => prev + 1)}
             speak={speak}
           />

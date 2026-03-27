@@ -1,6 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
 
 type Props = {
   correctAnswers: number;
@@ -19,32 +21,41 @@ export default function ResultScreen({
   const passed = percentage >= 80;
   const router = useRouter();
 
-  const stats = JSON.parse(
-    localStorage.getItem("learningStats") || "{}"
-  );
+  const [user, setUser] = useState<any>(null);
+  const [saved, setSaved] = useState(false);
 
-  stats[blockId] = {
-    accuracy: Math.round(percentage),
-    date: Date.now(),
-  };
+  // 🔐 получаем юзера
+  useEffect(() => {
+    const initUser = async () => {
+      const { data } = await supabase.auth.getUser();
+      setUser(data.user);
+    };
 
-  localStorage.setItem(
-    "learningStats",
-    JSON.stringify(stats)
-  );
+    initUser();
+  }, []);
 
-  if (passed) {
-    const currentUnlocked = Number(
-      localStorage.getItem("unlockedBlock") || "1"
-    );
+  // 💾 сохраняем результат блока
+  useEffect(() => {
+    if (!user || saved) return;
 
-    if (blockId >= currentUnlocked) {
-      localStorage.setItem(
-        "unlockedBlock",
-        String(blockId + 1)
-      );
-    }
-  }
+    const saveResult = async () => {
+      await supabase
+        .from("block_stats")
+        .upsert(
+          {
+            user_id: user.id,
+            block_id: blockId,
+            accuracy: Math.round(percentage),
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id,block_id" }
+        );
+
+      setSaved(true);
+    };
+
+    saveResult();
+  }, [user, saved, blockId, percentage]);
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-100 to-blue-100 relative overflow-hidden">
@@ -60,12 +71,14 @@ export default function ResultScreen({
         <p className="text-lg mb-6">
           {correctAnswers} из {totalQuestions}
         </p>
+
         <button
           onClick={onBack}
           className="px-8 py-3 bg-blue-500 text-white rounded-xl hover:scale-105 transition"
         >
           Вернуться к блокам
         </button>
+
         <button
           onClick={() => router.refresh()}
           className="mt-4 px-8 py-3 bg-green-500 text-white rounded-xl hover:scale-105 transition"

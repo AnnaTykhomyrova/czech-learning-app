@@ -5,13 +5,11 @@ import { Question } from "@/types/question";
 
 type Props = {
   question: Question;
-  onCorrect: () => void;
   nextQuestion: () => void;
 };
 
 export default function DragQuestion({
   question,
-  onCorrect,
   nextQuestion,
 }: Props) {
   const [availableWords, setAvailableWords] = useState<string[]>([]);
@@ -51,7 +49,6 @@ export default function DragQuestion({
 
     if (isCorrect) {
       setResult("correct");
-      onCorrect();
     } else {
       setResult("wrong");
     }

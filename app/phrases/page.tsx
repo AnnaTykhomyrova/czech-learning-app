@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabaseClient";
 
 type Phrase = {
-  id: number;
+  id: string;
   ru: string;
   cz: string;
   en?: string;
@@ -18,59 +19,89 @@ function speak(text: string) {
 }
 
 export default function PhrasesPage() {
-    const router = useRouter();
-    const [mode, setMode] = useState<"ru-cz" | "cz-en">("ru-cz");
+  const router = useRouter();
+  const [mode, setMode] = useState<"ru-cz" | "cz-en">("ru-cz");
   const [input, setInput] = useState("");
   const [phrases, setPhrases] = useState<Phrase[]>([]);
-  const [editingId, setEditingId] = useState<number | null>(null);
-const [editRu, setEditRu] = useState("");
-const [editCz, setEditCz] = useState("");
-const [editEn, setEditEn] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editRu, setEditRu] = useState("");
+  const [editCz, setEditCz] = useState("");
+  const [editEn, setEditEn] = useState("");
+  const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
-    const stored = localStorage.getItem("myPhrases");
-    if (stored) {
-      setPhrases(JSON.parse(stored));
-    }
+    const initUser = async () => {
+      const { data } = await supabase.auth.getUser();
+      setUser(data.user);
+    };
+
+    initUser();
   }, []);
 
-  const savePhrases = (updated: Phrase[]) => {
-    setPhrases(updated);
-    localStorage.setItem("myPhrases", JSON.stringify(updated));
+  useEffect(() => {
+    if (!user) return;
+
+    const load = async () => {
+      const { data } = await supabase
+        .from("phrases")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+
+      setPhrases(data || []);
+    };
+
+    load();
+  }, [user]);
+
+  const handleAdd = async () => {
+    if (!input.trim() || !user) return;
+
+    const parts = input.split(" - ");
+    if (parts.length < 2) return;
+
+    const { data } = await supabase
+      .from("phrases")
+      .insert({
+        user_id: user.id,
+        ru: parts[0].trim(),
+        cz: parts[1].trim(),
+      })
+      .select()
+      .single();
+
+    setPhrases((prev) => [data, ...prev]);
+    setInput("");
   };
 
-  const handleAdd = () => {
-  if (!input.trim()) return;
+  const handleDelete = async (id: string) => {
+    await supabase.from("phrases").delete().eq("id", id);
 
-  const parts = input.split(" - ");
-
-  if (parts.length < 2) {
-    alert("Введите в формате: русский - чешский");
-    return;
-  }
-
-  const newPhrase: Phrase = {
-    id: Date.now(),
-    ru: parts[0].trim(),
-    cz: parts[1].trim(),
+    setPhrases((prev) => prev.filter((p) => p.id !== id));
   };
 
-  savePhrases([newPhrase, ...phrases]);
-  setInput("");
-};
+  const handleSaveEdit = async () => {
+    if (editingId === null) return;
 
-const handleSaveEdit = () => {
-  if (!editingId) return;
+    await supabase
+      .from("phrases")
+      .update({
+        ru: editRu,
+        cz: editCz,
+        en: editEn,
+      })
+      .eq("id", editingId);
 
-  const updated = phrases.map((p) =>
-    p.id === editingId
-      ? { ...p, ru: editRu, cz: editCz, en: editEn }
-      : p
-  );
+    setPhrases((prev) =>
+      prev.map((p) =>
+        p.id === editingId
+          ? { ...p, ru: editRu, cz: editCz, en: editEn }
+          : p
+      )
+    );
 
-  savePhrases(updated);
-  setEditingId(null);
-};
+    setEditingId(null);
+  };
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-green-100 to-blue-100 p-8">
@@ -211,10 +242,7 @@ const handleSaveEdit = () => {
         <button
           onClick={() => {
             if (confirm("Удалить фразу?")) {
-              const updated = phrases.filter(
-                (p) => p.id !== phrase.id
-              );
-              savePhrases(updated);
+              handleDelete(phrase.id);
             }
           }}
           className="text-red-500"

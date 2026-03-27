@@ -7,6 +7,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { course } from "@/data/course";
 import { useEffect } from "react";
+import { supabase } from "@/lib/supabaseClient";
 
 function speak(text: string) {
   const utter = new SpeechSynthesisUtterance(text);
@@ -26,6 +27,8 @@ export default function BlockPage() {
     return <div className="p-10">Блок не найден</div>;
   }
 
+  const [user, setUser] = useState<any>(null);
+
   const {
     currentQuestion,
     correctAnswers,
@@ -35,9 +38,47 @@ export default function BlockPage() {
     setCorrectAnswers,
     setCurrentQuestion,
     handleAnswer,
-  } = useCourseProgress(block.questions.length);
+  } = useCourseProgress(block.questions.length, user);
 
   const question = block.questions[currentQuestion] ?? null;
+  const [unlocked, setUnlocked] = useState(false);
+
+  useEffect(() => {
+    const initUser = async () => {
+      const { data } = await supabase.auth.signInWithPassword({
+        email: "test@test.com",
+        password: "12345678",
+      });
+
+      setUser(data.user);
+    };
+
+    initUser();
+  }, []);
+
+  const unlockNextBlock = async (blockId: number) => {
+    if (!user) return;
+
+    const nextBlock = blockId + 1;
+
+   await supabase
+    .from("progress")
+    .upsert(
+      {
+        user_id: user.id,
+        block_id: nextBlock,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id" }
+    );
+  };
+
+  useEffect(() => {
+    if (!showResult || !user || unlocked) return;
+
+    unlockNextBlock(blockId);
+    setUnlocked(true);
+  }, [showResult, user, unlocked, blockId]);
 
   useEffect(() => {
     if (!showResult) return;
@@ -88,17 +129,6 @@ export default function BlockPage() {
     }
   }, [question]);
 
-  if (currentQuestion >= block.questions.length && !showResult) {
-    return (
-      <ResultScreen
-        correctAnswers={correctAnswers}
-        totalQuestions={block.questions.length}
-        blockId={blockId}
-        onBack={() => router.push("/course")}
-      />
-    );
-  }
-
   if (showResult) {
     return (
       <ResultScreen
@@ -124,9 +154,6 @@ export default function BlockPage() {
             selected={selected}
             onAnswer={(index) =>
               handleAnswer(index, question.correctIndex!, question)
-            }
-            onCorrect={() =>
-              setCorrectAnswers((prev) => prev + 1)
             }
             nextQuestion={() =>
               setCurrentQuestion((prev) => prev + 1)
