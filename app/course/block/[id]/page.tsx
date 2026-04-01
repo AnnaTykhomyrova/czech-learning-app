@@ -42,6 +42,7 @@ export default function BlockPage() {
 
   const question = block.questions[currentQuestion] ?? null;
   const [unlocked, setUnlocked] = useState(false);
+  const isFinished = currentQuestion >= block.questions.length;
 
   useEffect(() => {
     const initUser = async () => {
@@ -61,27 +62,39 @@ export default function BlockPage() {
 
     const nextBlock = blockId + 1;
 
-   await supabase
+    const accuracy = Math.round(
+      (correctAnswers / block.questions.length) * 100
+    );
+
+    await supabase
     .from("progress")
     .upsert(
       {
         user_id: user.id,
         block_id: nextBlock,
+        accuracy,
         updated_at: new Date().toISOString(),
       },
-      { onConflict: "user_id" }
+      { onConflict: "user_id,block_id" }
     );
   };
 
   useEffect(() => {
-    if (!showResult || !user || unlocked) return;
+    if (!isFinished || !user || unlocked) return;
 
-    unlockNextBlock(blockId);
-    setUnlocked(true);
-  }, [showResult, user, unlocked, blockId]);
+    console.log("🔥 UNLOCKING BLOCK", blockId);
+
+    const percentage =
+      (correctAnswers / block.questions.length) * 100;
+
+    if (percentage >= 80) {
+      unlockNextBlock(blockId);
+      setUnlocked(true);
+    }
+  }, [isFinished, user, unlocked, correctAnswers, blockId]);
 
   useEffect(() => {
-    if (!showResult) return;
+    if (!isFinished) return;
 
     const duration = 2000;
     const end = Date.now() + duration;
@@ -104,6 +117,7 @@ export default function BlockPage() {
       confetti.style.borderRadius = "50%";
       confetti.style.zIndex = "9999";
       confetti.style.transition = "transform 2s linear, opacity 2s";
+
       document.body.appendChild(confetti);
 
       setTimeout(() => {
@@ -117,7 +131,7 @@ export default function BlockPage() {
     }, 50);
 
     return () => clearInterval(interval);
-  }, [showResult]);
+  }, [isFinished]);
 
   useEffect(() => {
     if (question?.type === "audio") {
@@ -129,7 +143,7 @@ export default function BlockPage() {
     }
   }, [question]);
 
-  if (showResult) {
+  if (currentQuestion >= block.questions.length || showResult) {
     return (
       <ResultScreen
         correctAnswers={correctAnswers}
@@ -152,13 +166,24 @@ export default function BlockPage() {
           <QuestionRenderer
             question={question}
             selected={selected}
-            onAnswer={(index) =>
-              handleAnswer(index, question.correctIndex!, question)
-            }
+            onAnswer={(index) => {
+              if (question.correctIndex === undefined) return;
+
+              handleAnswer(index, question.correctIndex, question);
+            }}
             nextQuestion={() =>
               setCurrentQuestion((prev) => prev + 1)
             }
             speak={speak}
+            handleTypingAnswer={(isCorrect, question) => {
+              if (isCorrect) {
+                setCorrectAnswers((prev) => prev + 1);
+              }
+
+              setTimeout(() => {
+                setCurrentQuestion((prev) => prev + 1);
+              }, 800);
+            }}
           />
         )}
       </div>

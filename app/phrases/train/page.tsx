@@ -24,6 +24,9 @@ export default function TrainPage() {
   const [options, setOptions] = useState<string[]>([]);
   const [mistakes, setMistakes] = useState<Phrase[]>([]);
   const [user, setUser] = useState<any>(null);
+  const [loaded, setLoaded] = useState(false);
+
+  const phrase = phrases[current];
 
   useEffect(() => {
     const initUser = async () => {
@@ -44,25 +47,26 @@ export default function TrainPage() {
         .eq("user_id", user.id);
 
       setPhrases(shuffleArray(data || []));
+      setLoaded(true);
     };
 
     load();
   }, [user]);
 
-  const phrase = phrases[current];
-
   useEffect(() => {
     if (!phrase) return;
+
+    const totalOptions = Math.min(4, phrases.length);
 
     const wrongAnswers = shuffleArray(
       phrases.filter((p) => p.id !== phrase.id)
     )
-      .slice(0, 3)
-      .map((p) => p.cz);
+    .slice(0, totalOptions - 1)
+    .map((p) => p.cz);
 
     const generated = shuffleArray([
-        phrase.cz,
-        ...wrongAnswers,
+      phrase.cz,
+      ...wrongAnswers,
     ]);
 
     setOptions(generated);
@@ -76,7 +80,20 @@ export default function TrainPage() {
     }
   }, [current, phrases.length, mistakes]);
 
+  if (!loaded) {
+    return <div className="p-10 text-center">Загрузка...</div>;
+  }
+
+  if (phrases.length < 4) {
+    return (
+      <div className="p-10 text-center">
+        Добавь минимум 4 фразы для тренировки
+      </div>
+    );
+  }
+
   if (current >= phrases.length && mistakes.length === 0) {
+    const total = correctCount + mistakes.length || 1;
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="bg-white p-10 rounded-3xl shadow-xl text-center">
@@ -84,15 +101,15 @@ export default function TrainPage() {
             🎉 Тренировка завершена
           </h2>
           <p className="mb-2">
-              Correct answers: {correctCount}
+              Правильных ответов: {correctCount}
           </p>
 
           <p className="mb-2">
-              Mistakes: {mistakes.length}
+              Ошибок: {mistakes.length}
           </p>
 
           <p className="mb-6 font-medium">
-              Accuracy: {Math.round((correctCount / phrases.length) * 100)}%
+            Ошибок: {Math.round((correctCount / total) * 100)}%
           </p>
 
           <button
@@ -106,6 +123,17 @@ export default function TrainPage() {
     );
   }
 
+  if (!phrase || options.length === 0) {
+    return (
+      <div className="p-10 text-center text-gray-500">
+        Загружаем тренировку...
+      </div>
+    );
+  }
+
+  const correctIndex = options.indexOf(phrase.cz);
+  if (correctIndex === -1) return null;
+
   if (phrases.length === 0) {
     return (
       <div className="p-10">
@@ -113,9 +141,6 @@ export default function TrainPage() {
       </div>
     );
   }
-
-  const correctIndex = options.indexOf(phrase.cz);
-  if (correctIndex === -1) return null;
 
   const handleAnswer = (index: number) => {
     if (selected !== null) return;

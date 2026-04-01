@@ -186,6 +186,34 @@ export default function ReviewPage() {
             question={question}
             selected={selected}
             onAnswer={handleAnswer}
+            handleTypingAnswer={(isCorrect) => {
+              if (!question) return;
+
+              setTimeout(async () => {
+                let updated = [...questions];
+
+                if (!isCorrect) {
+                  const failed = updated.splice(current, 1)[0];
+
+                  const insertPosition = Math.min(current + 2, updated.length);
+                  updated.splice(insertPosition, 0, failed);
+                } else {
+                  updated = updated.filter((q) => q.id !== question.id);
+                  await removeMistake(String(question.id));
+                }
+
+                setQuestions(updated);
+
+                if (updated.length === 0) {
+                  setFinished(true);
+                  return;
+                }
+
+                if (current >= updated.length) {
+                  setCurrent(updated.length - 1);
+                }
+              }, 800);
+            }}
             nextQuestion={() => setCurrent((prev) => prev + 1)}
             speak={speak}
           />

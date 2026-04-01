@@ -28,6 +28,7 @@ export default function PhrasesPage() {
   const [editCz, setEditCz] = useState("");
   const [editEn, setEditEn] = useState("");
   const [user, setUser] = useState<any>(null);
+  const canTrain = phrases.length >= 4;
 
   useEffect(() => {
     const initUser = async () => {
@@ -148,11 +149,23 @@ export default function PhrasesPage() {
           </button>
         </div>
         <button
-            onClick={() => router.push("/phrases/train")}
-            className="mb-6 px-4 py-2 bg-green-500 text-white rounded-xl"
-            >
-            🎯 Тренироваться
+          onClick={() => {
+            if (canTrain) router.push("/phrases/train");
+          }}
+          disabled={!canTrain}
+          className={`mb-6 px-4 py-2 rounded-xl text-white ${
+            canTrain
+              ? "bg-green-500 hover:scale-105"
+              : "bg-gray-300 cursor-not-allowed"
+          }`}
+        >
+          🎯 Тренироваться
         </button>
+        {!canTrain && (
+          <p className="text-sm text-gray-500 mb-4">
+            Добавь минимум 4 фразы для тренировки
+          </p>
+        )}
         <div className="space-y-4">
           {phrases.map((phrase) => (
             <div key={phrase.id} className="p-4 bg-gray-100 rounded-xl transition-all duration-300">

@@ -27,8 +27,8 @@ export default function ResultScreen({
   // 🔐 получаем юзера
   useEffect(() => {
     const initUser = async () => {
-      const { data } = await supabase.auth.getUser();
-      setUser(data.user);
+      const { data } = await supabase.auth.getSession();
+      setUser(data.session?.user);
     };
 
     initUser();
@@ -36,10 +36,11 @@ export default function ResultScreen({
 
   // 💾 сохраняем результат блока
   useEffect(() => {
+    console.log("SAVE DEBUG", { user, percentage });
     if (!user || saved) return;
 
     const saveResult = async () => {
-      await supabase
+        const { error } = await supabase
         .from("block_stats")
         .upsert(
           {
@@ -50,6 +51,10 @@ export default function ResultScreen({
           },
           { onConflict: "user_id,block_id" }
         );
+
+        if (error) {
+          console.error("SAVE ERROR", error);
+        }
 
       setSaved(true);
     };
@@ -80,7 +85,7 @@ export default function ResultScreen({
         </button>
 
         <button
-          onClick={() => router.refresh()}
+          onClick={() => router.push(`/course/block/${blockId}`)}
           className="mt-4 px-8 py-3 bg-green-500 text-white rounded-xl hover:scale-105 transition"
         >
           🔁 Пройти блок ещё раз

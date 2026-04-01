@@ -10,7 +10,7 @@ type Props = {
   question: Question;
   selected: number | null;
   onAnswer: (index: number) => void;
-  onCorrect: () => void;
+  handleTypingAnswer?: (isCorrect: boolean, question: Question) => void;
   nextQuestion: () => void;
   speak: (text: string) => void;
 };
@@ -19,7 +19,7 @@ export default function QuestionRenderer({
   question,
   selected,
   onAnswer,
-  onCorrect,
+  handleTypingAnswer,
   nextQuestion,
   speak,
 }: Props) {
@@ -53,7 +53,6 @@ export default function QuestionRenderer({
     return (
       <DragQuestion
         question={question}
-        onCorrect={onCorrect}
         nextQuestion={nextQuestion}
       />
     );
@@ -64,9 +63,9 @@ export default function QuestionRenderer({
       <TypingQuestion
         question={question.question}
         answer={question.answer!}
-        onCorrect={onCorrect}
-        onWrong={() => onAnswer(-1)}
-        nextQuestion={nextQuestion}
+        onCorrect={() => handleTypingAnswer?.(true, question)}
+        onWrong={() => handleTypingAnswer?.(false, question)}
+        nextQuestion={() => {}}
       />
     );
   }

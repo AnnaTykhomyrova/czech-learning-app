@@ -33,34 +33,52 @@ export function useCourseProgress(
     }
   };
 
-  const handleAnswer = async (
-    index: number,
-    correctIndex: number,
-    question: Question
-  ) => {
-    if (selected !== null) return;
+    const handleAnswer = async (
+        index: number,
+        correctIndex: number,
+        question: Question
+    ) => {
+        if (selected !== null) return;
 
-    setSelected(index);
+        setSelected(index);
 
-    if (index === correctIndex) {
-      setCorrectAnswers((prev) => prev + 1);
-    } else {
-      await saveMistake(question); // 🔥 ВАЖНО
-    }
+        const isCorrect = index === correctIndex;
 
-    setTimeout(() => {
-      setSelected(null);
-
-      setCurrentQuestion((prev) => {
-        if (prev + 1 < totalQuestions) {
-          return prev + 1;
+        if (isCorrect) {
+            setCorrectAnswers((prev) => prev + 1);
         } else {
-          setShowResult(true);
-          return prev;
+            await saveMistake(question);
         }
-      });
-    }, 800);
-  };
+
+        setTimeout(() => {
+            setSelected(null);
+
+            setCurrentQuestion((prev) => {
+            if (prev + 1 < totalQuestions) {
+                return prev + 1;
+            } else {
+                setShowResult(true);
+                return prev;
+            }
+            });
+        }, 800);
+    };
+
+    const handleTypingAnswer = (isCorrect: boolean, question: Question) => {
+        if (isCorrect) {
+            setCorrectAnswers((prev) => prev + 1);
+        } else {
+            saveMistake(question);
+        }
+
+        setTimeout(() => {
+            setCurrentQuestion((prev) => {
+            if (prev + 1 < totalQuestions) return prev + 1;
+            setShowResult(true);
+            return prev;
+            });
+        }, 800);
+    };
 
   return {
     currentQuestion,

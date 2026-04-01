@@ -34,13 +34,15 @@ export default function ChoiceQuestion({
           return (
             <div
               key={index}
-              className={`p-4 rounded-xl transition-all ${
-                isSelected
-                  ? isCorrect
-                    ? "bg-green-300"
-                    : "bg-red-300"
-                  : "bg-gray-100 hover:bg-gray-200"
-              }`}
+              className={`p-4 rounded-xl transition-all duration-300 ${
+              selected !== null
+                ? isCorrect
+                  ? "bg-green-300" // ✅ правильный ВСЕГДА показываем
+                  : isSelected
+                  ? "bg-red-300"   // ❌ выбранный неправильный
+                  : "bg-gray-100"
+                : "bg-gray-100 hover:bg-gray-200"
+            }`}
               onClick={() => onAnswer(index)}
             >
               <div>{option}</div>

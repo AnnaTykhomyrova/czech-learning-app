@@ -9,8 +9,8 @@ export default function CoursePage() {
   const router = useRouter();
   const [unlockedBlock, setUnlockedBlock] = useState(1);
   const [hasMistakes, setHasMistakes] = useState(false);
-  const [stats, setStats] = useState<any>({});
   const [user, setUser] = useState<any>(null);
+  const [blockStats, setBlockStats] = useState<any>({});
 
   useEffect(() => {
     const initUser = async () => {
@@ -47,25 +47,27 @@ export default function CoursePage() {
   }, [user]);
 
   useEffect(() => {
-    const loadStats = async () => {
+    if (!user) return;
+
+    const loadBlockStats = async () => {
       const { data } = await supabase
-        .from("stats")
-        .select("*");
+        .from("block_stats")
+        .select("*")
+        .eq("user_id", user.id);
 
       const mapped: any = {};
 
       data?.forEach((item) => {
-        mapped[item.question_id] = {
-          correct: item.correct,
-          wrong: item.wrong,
+        mapped[item.block_id] = {
+          accuracy: item.accuracy,
         };
       });
 
-      setStats(mapped);
+      setBlockStats(mapped);
     };
 
-    loadStats();
-  }, []);
+    loadBlockStats();
+  }, [user]);
 
     useEffect(() => {
       const checkMistakes = async () => {
@@ -123,6 +125,16 @@ export default function CoursePage() {
               <p className="text-gray-500 capitalize">
                 Сложность: {block.difficulty}
               </p>
+              {blockStats[block.id] && (
+                <p className="text-sm text-gray-500">
+                  Эффективность: {blockStats[block.id].accuracy}%
+                </p>
+              )}
+              {block.id > unlockedBlock && (
+                <div className="text-red-400 text-sm mt-2">
+                  🔒 Заблокировано
+                </div>
+              )}
             </div>
           ))}
         </div>

@@ -220,14 +220,6 @@ export default function PracticePage() {
 
         const isCorrect = index === question.correctIndex;
 
-        setStats((prev: StatsType) => ({
-            ...prev,
-            [question.id]: {
-                correct: (prev[question.id]?.correct || 0) + (isCorrect ? 1 : 0),
-                wrong: (prev[question.id]?.wrong || 0) + (!isCorrect ? 1 : 0),
-            },
-        }));
-
         if (isCorrect) {
             setCorrectCount((prev) => prev + 1);
             setStreak((prev) => prev + 1);
@@ -235,40 +227,13 @@ export default function PracticePage() {
             await saveMistake(question);
             setStreak(0);
 
-            let isDead = false;
-
             setLives((prev) => {
-                const newLives = prev - 1;
-
-                if (newLives <= 0) {
-                    isDead = true;
-
-                    setTimeout(() => {
-                        setGameOver(true);
-                    }, 800);
-                }
-
-            return newLives;
-            });
-
-            if (isDead) return;
-
-            if ((question.repeats ?? 0) < 2) {
-            const updated = [...questions];
-
-            const failed = {
-                ...question,
-                repeats: (question.repeats ?? 0) + 1,
-            };
-
-            updated.splice(current, 1);
-
-            const insertPosition = Math.min(current + 2, updated.length);
-
-            updated.splice(insertPosition, 0, failed);
-
-            setQuestions(updated);
+            const newLives = prev - 1;
+            if (newLives <= 0) {
+                setTimeout(() => setGameOver(true), 800);
             }
+                return newLives;
+            });
         }
 
         await saveProgress(String(question.id), isCorrect);
@@ -276,17 +241,35 @@ export default function PracticePage() {
         setTimeout(() => {
             setSelected(null);
 
-            setCurrent((prevCurrent) => {
-                const nextIndex = prevCurrent + 1;
+            let updated = [...questions];
 
-                if (nextIndex < questions.length) {
-                    return nextIndex;
-                } else {
-                    setFinished(true);
-                    return prevCurrent;
+            if (!isCorrect) {
+                if ((question.repeats ?? 0) < 2) {
+                    const failed = {
+                    ...question,
+                    repeats: (question.repeats ?? 0) + 1,
+                    };
+
+                    updated.splice(current, 1);
+
+                    const insertPosition = Math.min(current + 2, updated.length);
+
+                    updated.splice(insertPosition, 0, failed);
                 }
+            }
+
+            setQuestions(updated);
+
+            setCurrent((prev) => {
+                const next = prev + 1;
+
+                if (next < updated.length) return next;
+
+                setFinished(true);
+                return prev;
             });
-        }, 800);
+
+        }, 1000);
     };
 
     if (gameOver) {
