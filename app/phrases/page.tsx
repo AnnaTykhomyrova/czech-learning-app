@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
+
 
 type Phrase = {
   id: string;
@@ -19,6 +21,8 @@ function speak(text: string) {
 }
 
 export default function PhrasesPage() {
+  useRequireAuth();
+
   const router = useRouter();
   const [mode, setMode] = useState<"ru-cz" | "cz-en">("ru-cz");
   const [input, setInput] = useState("");
@@ -34,6 +38,7 @@ export default function PhrasesPage() {
     const initUser = async () => {
       const { data } = await supabase.auth.getUser();
       setUser(data.user);
+      console.log("USER:", data.user);
     };
 
     initUser();

@@ -54,6 +54,8 @@ export default function QuestionRenderer({
       <DragQuestion
         question={question}
         nextQuestion={nextQuestion}
+        onCorrect={() => handleTypingAnswer?.(true, question)}
+        onWrong={() => handleTypingAnswer?.(false, question)}
       />
     );
   }

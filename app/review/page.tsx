@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import QuestionRenderer from "@/components/questions/QuestionRenderer";
 import type { Question } from "@/types/question";
 import { supabase } from "@/lib/supabaseClient";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
+
 
 
 function speak(text: string) {
@@ -15,6 +17,8 @@ function speak(text: string) {
 }
 
 export default function ReviewPage() {
+  useRequireAuth();
+  
   const [questions, setQuestions] = useState<Question[]>([]);
   const [current, setCurrent] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
@@ -36,12 +40,9 @@ export default function ReviewPage() {
 
   useEffect(() => {
     const initUser = async () => {
-      const { data } = await supabase.auth.signInWithPassword({
-        email: "test@test.com",
-        password: "12345678",
-      });
-
+      const { data } = await supabase.auth.getUser();
       setUser(data.user);
+      console.log("USER:", data.user);
     };
 
     initUser();

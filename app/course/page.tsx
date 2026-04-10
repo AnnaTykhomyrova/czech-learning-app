@@ -1,25 +1,39 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { course } from "@/data/course";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
+
 
 export default function CoursePage() {
+  useRequireAuth();
+  
   const router = useRouter();
   const [unlockedBlock, setUnlockedBlock] = useState(1);
   const [hasMistakes, setHasMistakes] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [blockStats, setBlockStats] = useState<any>({});
+  const [blocks, setBlocks] = useState<any[]>([]);
+
+  useEffect(() => {
+    const loadBlocks = async () => {
+      const { data } = await supabase
+        .from("blocks")
+        .select("*")
+        .order("order_index");
+
+      setBlocks(data || []);
+    };
+
+    loadBlocks();
+  }, []);
 
   useEffect(() => {
     const initUser = async () => {
-      const { data } = await supabase.auth.signInWithPassword({
-        email: "test@test.com",
-        password: "12345678",
-      });
-
+      const { data } = await supabase.auth.getUser();
       setUser(data.user);
+      console.log("USER:", data.user);
     };
 
     initUser();
@@ -33,13 +47,12 @@ export default function CoursePage() {
         .from("progress")
         .select("block_id")
         .eq("user_id", user.id)
-        .order("block_id", { ascending: false })
-        .limit(1);
 
       if (data && data.length > 0) {
-        setUnlockedBlock(data[0].block_id);
+        const maxBlock = Math.max(...data.map((d) => d.block_id));
+        setUnlockedBlock(maxBlock);
       } else {
-        setUnlockedBlock(1); // дефолт
+        setUnlockedBlock(1);
       }
     };
 
@@ -70,19 +83,22 @@ export default function CoursePage() {
   }, [user]);
 
     useEffect(() => {
-      const checkMistakes = async () => {
-          const { data } = await supabase
-              .from("mistakes")
-              .select("id")
-              .limit(1);
+      if (!user) return; 
 
-          if (data && data.length > 0) {
-              setHasMistakes(true);
-          }
+      const checkMistakes = async () => {
+        const { data } = await supabase
+          .from("mistakes")
+          .select("id")
+          .eq("user_id", user.id)
+          .limit(1);
+
+        if (data && data.length > 0) {
+          setHasMistakes(true);
+        }
       };
 
       checkMistakes();
-  }, []);
+    }, [user]);
 
 
   return (
@@ -107,14 +123,13 @@ export default function CoursePage() {
             >
               Быстрая тренировка
             </button>
-          {course.blocks.map((block) => (
+          {blocks.map((block) => (
             <div
               key={block.id}
               onClick={() => {
-                if (block.id <= unlockedBlock) {
-                    router.push(`/course/block/${block.id}`);
-                }
-            }}
+                if (block.order_index > unlockedBlock) return;
+                router.push(`/course/block/${block.id}`);
+              }}
               className={`bg-white p-6 rounded-2xl shadow-md transition-transform ${
                 block.id <= unlockedBlock
                     ? "cursor-pointer hover:scale-105"

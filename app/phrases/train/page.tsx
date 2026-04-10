@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
+
 
 type Phrase = {
   id: string;
@@ -16,6 +18,8 @@ function shuffleArray<T>(array: T[]): T[] {
 }
 
 export default function TrainPage() {
+  useRequireAuth();
+  
   const router = useRouter();
   const [phrases, setPhrases] = useState<Phrase[]>([]);
   const [current, setCurrent] = useState(0);
@@ -32,6 +36,7 @@ export default function TrainPage() {
     const initUser = async () => {
       const { data } = await supabase.auth.getUser();
       setUser(data.user);
+      console.log("USER:", data.user);
     };
 
     initUser();

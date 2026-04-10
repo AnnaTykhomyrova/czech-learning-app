@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { course } from "@/data/course";
 import { Question } from "@/types/question";
 
 import { supabase } from "@/lib/supabaseClient";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
+
 
 function shuffleArray<T>(array: T[]): T[] {
   return [...array].sort(() => Math.random() - 0.5);
@@ -19,6 +20,8 @@ function speak(text: string) {
 }
 
 export default function PracticePage() {
+    useRequireAuth();
+
     const router = useRouter();
 
     type PracticeQuestion = Question & {
@@ -43,15 +46,35 @@ export default function PracticePage() {
     const [stats, setStats] = useState<StatsType>({});
     const [user, setUser] = useState<any>(null);
     const [initialized, setInitialized] = useState(false);
+    const [allQuestions, setAllQuestions] = useState<Question[]>([]);
+
+    useEffect(() => {
+        if (!user) return;
+
+        const loadQuestions = async () => {
+            const { data } = await supabase
+            .from("questions")
+            .select("*");
+
+            const mapped = (data || []).map((q) => ({
+            ...q,
+            correctIndex: q.correct_index,
+            options: typeof q.options === "string"
+                ? JSON.parse(q.options)
+                : q.options,
+            }));
+
+            setAllQuestions(mapped);
+        };
+
+        loadQuestions();
+    }, [user]);
 
     useEffect(() => {
         const initUser = async () => {
-            const { data } = await supabase.auth.signInWithPassword({
-                email: "test@test.com",
-                password: "12345678",
-            });
-
+            const { data } = await supabase.auth.getUser();
             setUser(data.user);
+            console.log("USER:", data.user);
         };
 
         initUser();
@@ -86,12 +109,14 @@ export default function PracticePage() {
         if (!initialized || !user) return;
 
         const loadQuestions = async () => {
-            const allQuestions = course.blocks
-                .flatMap((block) => block.questions)
-                .filter((q) => q.type === "choice" || q.type === "audio");
+            const filteredQuestions = allQuestions.filter(
+                (q) => q.type === "choice" || q.type === "audio"
+            );
 
-            const weightedQuestions = allQuestions.map((q) => {
-                const s = stats[q.id];
+            if (filteredQuestions.length === 0) return;
+
+            const weightedQuestions = filteredQuestions.map((q) => {
+                const s = stats[String(q.id)];
 
                 if (!s) return { ...q, weight: 3 };
 
@@ -138,7 +163,7 @@ export default function PracticePage() {
             let combined = [...randomQuestions, ...mistakeQuestions];
 
             if (combined.length < 5) {
-                const extra = shuffleArray(allQuestions).slice(0, 5 - combined.length);
+                const extra = shuffleArray(filteredQuestions).slice(0, 5 - combined.length);
                 combined = [...combined, ...extra];
             }
 
@@ -153,7 +178,7 @@ export default function PracticePage() {
         };
 
         loadQuestions();
-    }, [initialized, user]);
+    }, [initialized, user, allQuestions]);
 
     if (questions.length === 0) {
         return <div className="p-10">Загрузка...</div>;
@@ -161,7 +186,9 @@ export default function PracticePage() {
 
     const question = questions[current] ?? questions[0];
 
-    if (!question?.options) return null;
+    if (!question?.options || question.options.length === 0) {
+        return <div className="p-10">Ошибка вопроса</div>;
+    }
 
     async function saveProgress(questionId: string, isCorrect: boolean) {
     if (!user) return;

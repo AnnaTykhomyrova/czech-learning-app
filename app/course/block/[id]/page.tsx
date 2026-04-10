@@ -5,9 +5,10 @@ import ResultScreen from "@/components/course/ResultScreen";
 import { useCourseProgress } from "@/hooks/useCourseProgress";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
-import { course } from "@/data/course";
 import { useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
+
 
 function speak(text: string) {
   const utter = new SpeechSynthesisUtterance(text);
@@ -17,17 +18,56 @@ function speak(text: string) {
 }
 
 export default function BlockPage() {
+  useRequireAuth();
+
   const params = useParams();
   const router = useRouter();
   const blockId = Number(params.id);
-
-  const block = course.blocks.find((b) => b.id === blockId);
-
-  if (!block) {
-    return <div className="p-10">Блок не найден</div>;
-  }
-
+  const [questions, setQuestions] = useState<any[]>([]);
   const [user, setUser] = useState<any>(null);
+  const [unlocked, setUnlocked] = useState(false);
+  const [currentBlock, setCurrentBlock] = useState<any>(null);
+
+  useEffect(() => {
+    const loadBlock = async () => {
+      const { data } = await supabase
+        .from("blocks")
+        .select("*")
+        .eq("id", blockId)
+        .single();
+
+      setCurrentBlock(data);
+    };
+
+    loadBlock();
+}, [blockId]);
+
+  useEffect(() => {
+    const loadQuestions = async () => {
+      const { data } = await supabase
+        .from("questions")
+        .select("*")
+        .eq("block_id", blockId);
+
+      // 🔥 ВАЖНО: преобразуем snake_case → camelCase
+      const mapped = (data || []).map((q) => ({
+        ...q,
+        correctIndex: q.correct_index,
+        options:
+          typeof q.options === "string"
+            ? JSON.parse(q.options)
+            : q.options,
+        words:
+          typeof q.words === "string"
+            ? JSON.parse(q.words)
+            : q.words,
+      }));
+
+      setQuestions(mapped);
+    };
+
+    loadQuestions();
+  }, [blockId]);
 
   const {
     currentQuestion,
@@ -38,60 +78,73 @@ export default function BlockPage() {
     setCorrectAnswers,
     setCurrentQuestion,
     handleAnswer,
-  } = useCourseProgress(block.questions.length, user);
+  } = useCourseProgress(questions.length, user);
 
-  const question = block.questions[currentQuestion] ?? null;
-  const [unlocked, setUnlocked] = useState(false);
-  const isFinished = currentQuestion >= block.questions.length;
+  const question = questions[currentQuestion] ?? null;
+  const isFinished = questions.length > 0 && currentQuestion >= questions.length;
 
   useEffect(() => {
     const initUser = async () => {
-      const { data } = await supabase.auth.signInWithPassword({
-        email: "test@test.com",
-        password: "12345678",
-      });
-
+      const { data } = await supabase.auth.getUser();
       setUser(data.user);
+      console.log("USER:", data.user);
     };
 
     initUser();
   }, []);
 
-  const unlockNextBlock = async (blockId: number) => {
-    if (!user) return;
+  const unlockNextBlock = async () => {
+    if (!user || !currentBlock) return;
 
-    const nextBlock = blockId + 1;
+    const nextOrder = currentBlock.order_index + 1;
+
+    const { data: nextBlock } = await supabase
+      .from("blocks")
+      .select("id")
+      .eq("order_index", nextOrder)
+      .single();
+
+    if (!nextBlock) return;
+
+    console.log("🔥 UNLOCKING BLOCK", nextBlock.id); // ✅ ВОТ ТУТ
 
     const accuracy = Math.round(
-      (correctAnswers / block.questions.length) * 100
+      (correctAnswers / questions.length) * 100
     );
 
-    await supabase
-    .from("progress")
-    .upsert(
-      {
+    const { error } = await supabase
+      .from("progress")
+      .upsert({
         user_id: user.id,
-        block_id: nextBlock,
+        block_id: nextBlock.id,
         accuracy,
         updated_at: new Date().toISOString(),
       },
-      { onConflict: "user_id,block_id" }
-    );
+      {
+        onConflict: "user_id,block_id",
+      }
+    )
+    if (error) {
+      console.error("❌ SUPABASE ERROR:", error);
+    }
   };
 
   useEffect(() => {
-    if (!isFinished || !user || unlocked) return;
+    if (!isFinished || !user || unlocked || !currentBlock) return;
 
-    console.log("🔥 UNLOCKING BLOCK", blockId);
+    const runUnlock = async () => {
+      const percentage = Math.round(
+        (correctAnswers / questions.length) * 100
+      );
 
-    const percentage =
-      (correctAnswers / block.questions.length) * 100;
+      if (percentage >= 80) {
+        await unlockNextBlock();
+        setUnlocked(true);
+      }
+    };
 
-    if (percentage >= 80) {
-      unlockNextBlock(blockId);
-      setUnlocked(true);
-    }
-  }, [isFinished, user, unlocked, correctAnswers, blockId]);
+  runUnlock();
+}, [isFinished, user, unlocked, correctAnswers, currentBlock]);
 
   useEffect(() => {
     if (!isFinished) return;
@@ -143,11 +196,15 @@ export default function BlockPage() {
     }
   }, [question]);
 
-  if (currentQuestion >= block.questions.length || showResult) {
+  if (questions.length === 0) {
+    return <div className="p-10">Загрузка...</div>;
+  }
+
+  if (currentQuestion >= questions.length || showResult) {
     return (
       <ResultScreen
         correctAnswers={correctAnswers}
-        totalQuestions={block.questions.length}
+        totalQuestions={questions.length}
         blockId={blockId}
         onBack={() => router.push("/course")}
       />

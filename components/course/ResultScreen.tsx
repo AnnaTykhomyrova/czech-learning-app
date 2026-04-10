@@ -36,8 +36,8 @@ export default function ResultScreen({
 
   // 💾 сохраняем результат блока
   useEffect(() => {
-    console.log("SAVE DEBUG", { user, percentage });
     if (!user || saved) return;
+    console.log("SAVE DEBUG", { user, percentage });
 
     const saveResult = async () => {
         const { error } = await supabase
@@ -85,7 +85,7 @@ export default function ResultScreen({
         </button>
 
         <button
-          onClick={() => router.push(`/course/block/${blockId}`)}
+          onClick={() => window.location.reload()}
           className="mt-4 px-8 py-3 bg-green-500 text-white rounded-xl hover:scale-105 transition"
         >
           🔁 Пройти блок ещё раз
